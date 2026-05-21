@@ -1,52 +1,141 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高德地图代理示例</title>
-    <style>
-        /* 简单设置地图容器样式，让它占满全屏 */
-        html, body, #map-container {
-            height: 100%;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>吉康公众号内容生成器</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="map-container"></div>
-    <script>
-        // 安全配置：由于我们的代理服务也在本地，这里就指向当前服务的根路径即可。
-        // 最终的地图瓦片请求会被发送到 /_AMapService/...
-        window._AMapSecurityConfig = {
-            serviceHost: "https://xiaoxin-depsmkdmhq.cn-hangzhou.fcapp.run/_AMapService/",
-        };
-    </script>
-    <!-- 加载高德地图 JS API 2.0 -->
-    <script>
-        // 使用动态创建 script 标签的方式来异步加载高德地图 API
-        // 并在加载完成后初始化地图
-        function loadAmapAndInit() {
-            const script = document.createElement('script');
-            // 注意：这里只传入了 key，没有像传统方式那样直接传递 jscode。
-            // 因为 jscode 将由我们即将搭建的代理服务器在转发请求时自动附加。
-            script.src = `https://webapi.amap.com/maps?v=2.0&key=c702b6698ea0898766913261b621ca9f&callback=initMap`;
-            document.head.appendChild(script);
-        }
 
-        // 地图初始化函数
-        function initMap() {
-            const map = new AMap.Map('map-container', {
-                zoom: 11,               // 初始化地图级别
-                center: [116.397428, 39.90923], // 初始化地图中心点 (北京天安门)
-                viewMode: '2D',         // 使用2D视图模式
-            });
-            console.log('地图加载成功！');
-        }
+<!-- 顶部栏 -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">吉</div>
+    <div>
+      <h1>吉康公众号内容生成器</h1>
+      <span>广东吉康环境系统科技有限公司</span>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button id="settingsToggle" class="btn-sm" title="API 设置">⚙️ 设置</button>
+    <button id="clearBtn" class="btn-sm btn-outline">清空</button>
+    <button id="generateBtn" class="btn-sm btn-primary" disabled>🚀 生成文案</button>
+  </div>
+</header>
 
-        // 页面加载完成后开始加载地图
-        window.onload = loadAmapAndInit;
-    </script>
+<!-- API 设置面板（折叠） -->
+<div id="settingsPanel" class="settings-panel hidden">
+  <div class="settings-row">
+    <div class="field">
+      <label>API 基础地址</label>
+      <input id="apiBase" type="text" value="https://jikang-api.748987578.workers.dev" placeholder="Cloudflare Worker 代理地址">
+      <span class="help">默认使用 Worker 代理，也可直接用 Dify 地址</span>
+    </div>
+    <div class="field">
+      <label>Dify API Key（Bearer Token）</label>
+      <input id="apiKey" type="password" placeholder="app-xxxxxx（如果Worker已内置可留空）">
+      <span class="help">留空则使用 Worker 内置密钥</span>
+    </div>
+  </div>
+</div>
+
+<!-- 主区域 -->
+<div class="main">
+
+  <!-- ===== 左栏：参数输入 ===== -->
+  <section class="panel panel-input" id="inputPanel">
+    <div class="panel-head">
+      <h2>📝 参数输入</h2>
+    </div>
+
+    <div class="panel-body">
+      <!-- 主题 -->
+      <div class="field">
+        <label>推文主题 <em>*</em></label>
+        <input id="topicIpt" type="text" maxlength="48" placeholder="例：2024广州国际环博会吉康参展">
+        <span class="counter"><b id="topicCnt">0</b>/48</span>
+      </div>
+
+      <!-- 关键词 -->
+      <div class="field">
+        <label>关键词 <em>*</em></label>
+        <input id="keywordsIpt" type="text" maxlength="48" placeholder="例：低温干化、污泥处理、环博会">
+        <span class="counter"><b id="keywordsCnt">0</b>/48</span>
+      </div>
+
+      <!-- 内容类型 -->
+      <div class="field">
+        <label>内容类型 <em>*</em></label>
+        <div class="radio-group" id="typeGroup">
+          <label class="radio-chip" data-val="事件">
+            <input type="radio" name="content" value="事件">📰 事件
+          </label>
+          <label class="radio-chip" data-val="技术">
+            <input type="radio" name="content" value="技术">🔧 技术
+          </label>
+          <label class="radio-chip" data-val="政策">
+            <input type="radio" name="content" value="政策">📋 政策
+          </label>
+        </div>
+      </div>
+
+      <!-- 图片上传 -->
+      <div class="field">
+        <label>参考图片 <small>(最多5张)</small></label>
+        <div class="img-upload">
+          <div id="imgPreview" class="img-grid"></div>
+          <label class="img-add-btn" id="imgAddBtn">
+            <input type="file" id="imgFileIpt" accept="image/*" multiple hidden>
+            <span>+</span><span>添加图片</span>
+          </label>
+        </div>
+        <span class="help" id="imgHint">已选 0/5 张</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 中栏：文案预览 ===== -->
+  <section class="panel panel-article" id="articlePanel">
+    <div class="panel-head">
+      <h2>📄 文案预览</h2>
+      <div class="head-btns">
+        <button id="copyBtn" class="btn-sm btn-outline" disabled>📋 复制</button>
+        <button id="downMdBtn" class="btn-sm btn-outline" disabled>⬇️ 下载MD</button>
+      </div>
+    </div>
+    <div class="panel-body" id="articleBody">
+      <div class="empty">
+        <div class="empty-icon">✍️</div>
+        <p>输入参数后点击「生成文案」</p>
+        <span>AI 将自动生成公众号推文并在此渲染</span>
+      </div>
+    </div>
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <div class="spinner"></div>
+      <span>AI 正在生成文案…</span>
+    </div>
+  </section>
+
+  <!-- ===== 右栏：质量评估 ===== -->
+  <section class="panel panel-assessment" id="assessPanel">
+    <div class="panel-head">
+      <h2>📊 质量评估</h2>
+    </div>
+    <div class="panel-body" id="assessBody">
+      <div class="empty">
+        <div class="empty-icon">🔍</div>
+        <p>生成文案后自动出评估报告</p>
+        <span>30分制 | 6维度分析 | 改进建议</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden">✅ 已复制到剪贴板</div>
+
+<script src="app.js"></script>
 </body>
 </html>
